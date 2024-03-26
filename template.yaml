@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless patterns - Amazon API Gateway to AWS Lambda to Amazon DynamoDB (uksb-1tthgi812) (tag:apigw-lambda-dynamodb)
+Resources:
+  AddDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.8
+      PackageType: Zip 
+      Events:
+        AddDataApi:
+          Type: Api
+          Properties:
+            Path: /weather
+            Method: post
+  DeleteDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: delete_function.lambda_handler
+      Runtime: python3.8
+      PackageType: Zip
+      Events:
+        DeleteApi:
+          Type: Api
+          Properties:
+            Path: /weather/{id}
+            Method: delete
+  MyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: WeatherData
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'OPTIONS, GET, POST, DELETE'"
+        AllowHeaders: "'Content-Type, X-Amz-Date, Authorization, X-Api-Key'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Ref "AWS::StackName"
+          version: "1.0"
+        paths:
+          /weather:
+            post:
+              consumes:
+                - application/json
+              produces:
+                - application/json
+              responses:
+                '200':
+                  description: '200 response'
+              x-amazon-apigateway-integration:
+                type: "aws_proxy"
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AddDataFunction.Arn}/invocations"
+                httpMethod: "POST"
+                responses:
+                  default:
+                    statusCode: "200"
+Outputs:
+  EndpointUrl:
+    Description: 'HTTP REST endpoint URL'
+    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
